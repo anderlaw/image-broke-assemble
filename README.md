@@ -1,5 +1,8 @@
 # image-broke-assemble
 一个图片效果插件，一张图片即可实现一些好玩有趣的动画效果
+
+![20220309080801-7c011ad592 gif-2-mp4 com](https://user-images.githubusercontent.com/21139011/157376986-2f11e38b-c02c-4c6c-9051-7a2150319af2.gif)
+
 ## 使用方法
 ### 实例化容器
 ```
