@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Title</title>
+    <style>
+        div {
+            margin: 4px;
+            display: inline-block;
+        }
+    </style>
+</head>
+<body>
+<input type="file"/>
+<div id="img-container"></div>
+<script>
+    class ImageTransformer {
+        initImgData(src, callback) {
+            //remove all children elements
+            this.container.innerHTML = '';
+            this._getImgInfoBySrc(src, (result) => {
+                this.imgEle = result.imgEle;
+                this.imgWidth = result.width;
+                this.imgHeight = result.height;
+
+
+                //确定整数的比例尺及真实的容器宽高（防止定位时因浮点数导致的像素错位）
+                this.ratio = (this.containerWidth / this.imgWidth)
+                this._containerWidth = this.ratio * this.imgWidth
+                this._containerHeight = this.ratio * this.imgHeight
+                //确定外围容器的尺寸
+                this.container.style.width = this._containerWidth + 'px';
+                this.container.style.height = this._containerHeight + 'px';
+
+                //获取图片剪切参数
+                this.sliceArr = this._getSliceArr()
+
+
+                //剪切并保存图片
+                const canvas = document.createElement('canvas')
+                const canvasCtx = canvas.getContext('2d')
+                this.base64Arr = this.sliceArr.map(item => {
+                    canvas.width = item.dw * this.ratio
+                    canvas.height = item.dh * this.ratio
+                    canvasCtx.clearRect(0, 0, canvas.width, canvas.height)
+                    canvasCtx.drawImage(this.imgEle, item.dx / this.ratio, item.dy / this.ratio, item.dw / this.ratio, item.dh / this.ratio, 0, 0, canvas.width, canvas.height);
+                    return canvas.toDataURL()
+                })
+                callback && callback()
+            })
+        }
+
+        constructor(selector) {
+            //outer container
+            this.container = document.querySelector(selector);
+            this.container.style.position = 'relative'
+            this.container.style.overflow = 'hidden'
+
+            this.sliceArr = null
+            this.imgEle = null;
+            this.base64Arr = null;
+            this.ratio = 1;
+            this.imgWidth = 0;
+            this.imgHeight = 0;
+            this._containerWidth = 0;
+            this._containerHeight = 0;
+            //config
+            this.config()
+        }
+
+        /**
+         *
+         * @param rowCount
+         * @param columnCount
+         * @param effect: slide|fly|grow
+         * @param direction:'left'|'right'|'top'|'bottom'
+         *
+         */
+        config({rowCount = 5, columnCount = 5, containerWidth = 500, effect = 'slide', direction = 'left'} = {}) {
+            this.rowCount = rowCount || 5
+            this.columnCount = columnCount || 5
+            this.containerWidth = containerWidth || 500
+            this.direction = direction
+            this.effect = effect
+        }
+
+        /**
+         * 开始
+         */
+        _placeAllNode() {
+            this.base64Arr.forEach((bs64, index) => {
+                //调整单张图片容器尺寸
+                const imgBox = document.createElement('div');
+
+                const imgboxSize = [this.sliceArr[index].dw, this.sliceArr[index].dh]
+                imgBox.style.width = imgboxSize[0] + 'px'
+                imgBox.style.height = imgboxSize[1] + 'px'
+                debugger
+                imgBox.style.position = 'absolute';
+                imgBox.style.transformStyle = 'preserve-3d';
+
+                if (this.effect === 'slide') {
+
+                    imgBox.style.transition = 'transform 1.5s ease-in';
+                    //initial position
+                    if (this.direction === 'left') {
+                        imgBox.style.transform = 'rotateY(-90deg)'
+                    } else if (this.direction === 'right') {
+                        imgBox.style.transform = 'rotateY(90deg)'
+                    } else if (this.direction === 'top') {
+                        imgBox.style.transform = 'rotateX(90deg)'
+                    } else if (this.direction === 'bottom') {
+                        imgBox.style.transform = 'rotateX(-90deg)'
+                    }
+                    imgBox.style.left = this.sliceArr[index].dx + 'px'
+                    imgBox.style.top = this.sliceArr[index].dy + 'px'
+                    //insert child
+                    const newImg = document.createElement('img');
+                    newImg.style.width = '100%'
+                    newImg.style.height = '100%'
+                    newImg.src = bs64
+                    imgBox.appendChild(newImg)
+
+                    this.container.appendChild(imgBox)
+                } else if (this.effect === 'grow') {
+
+                    imgBox.style.transition = 'transform 1.5s ease-in, left 1.5s ease-in, top 1.5s ease-in';
+                    //get random degree
+                    const randomDegree = () => Math.floor(Math.random() * 360)
+                    const randomSignal = () => Math.random() > 0.5 ? '-' : '+'
+
+                    //initial position
+                    imgBox.style.top = this._containerHeight + imgboxSize[0] / 2 + 'px'
+                    imgBox.style.transform = `rotateX(${randomSignal()}${randomDegree()}deg) rotateY(${randomSignal()}${randomDegree()}deg)`
+                    console.log(imgBox.style.transform)
+                    imgBox.appendChild(this._3dLayer(document.createElement('div'), imgboxSize, 'left'))
+                    imgBox.appendChild(this._3dLayer(document.createElement('div'), imgboxSize, 'right'))
+                    imgBox.appendChild(this._3dLayer(document.createElement('div'), imgboxSize, 'top'))
+                    imgBox.appendChild(this._3dLayer(document.createElement('div'), imgboxSize, 'bottom'))
+                    imgBox.appendChild(this._3dLayer(document.createElement('div'), imgboxSize, 'back'))
+                    //special img ele
+                    const newImg = document.createElement('img');
+                    newImg.style.width = '100%'
+                    newImg.style.height = '100%'
+                    newImg.src = bs64
+                    imgBox.appendChild(this._3dLayer(newImg, imgboxSize, 'front'))
+
+
+                    this.container.appendChild(imgBox)
+                } else if (this.effect === 'fly') {
+                    imgBox.style.transition = 'left 1.5s ease-out,top 1.5s ease-out';
+                    //initial position
+                    if (this.direction === 'left') {
+                        imgBox.style.top = Math.floor(index / this.columnCount) * imgboxSize[1] + 'px'
+                        if (Math.ceil(index / this.columnCount) % 2 === 0) {
+                            //偶数行
+                            imgBox.style.left = `-${imgboxSize[0]}px`
+                        } else {
+                            //奇数行
+                            imgBox.style.left = `calc(100% + ${imgboxSize[0]}px)`
+                        }
+                    } else if (this.direction === 'right') {
+                        imgBox.style.transform = 'rotateY(90deg)'
+                    } else if (this.direction === 'top') {
+                        imgBox.style.transform = 'rotateX(90deg)'
+                    } else if (this.direction === 'bottom') {
+                        imgBox.style.transform = 'rotateX(-90deg)'
+                    }
+                    //insert child
+                    const newImg = document.createElement('img');
+                    newImg.style.width = '100%'
+                    newImg.style.height = '100%'
+                    newImg.src = bs64
+                    imgBox.appendChild(newImg)
+
+                    this.container.appendChild(imgBox)
+                }
+
+            })
+        }
+
+        execute() {
+            this._placeAllNode()
+            Array.prototype.forEach.call(this.container.children, (imgBox, index) => {
+                if (this.effect === 'slide') {
+                    setTimeout(() => {
+                        imgBox.style.transform = 'rotateX(0deg) rotateY(0deg)'
+                    }, 100)
+                } else if (this.effect === 'grow') {
+                    setTimeout(() => {
+                        imgBox.style.left = this.sliceArr[index].dx + 'px'
+                        imgBox.style.top = this.sliceArr[index].dy + 'px'
+                        imgBox.style.transform = 'rotateX(0deg) rotateY(0deg)'
+                    }, 100 * index)
+                } else if (this.effect === 'fly') {
+                    setTimeout(() => {
+                        imgBox.style.left = this.sliceArr[index].dx + 'px'
+                        imgBox.style.top = this.sliceArr[index].dy + 'px'
+                    }, 100)
+                }
+
+            })
+        }
+
+        _getSliceArr() {
+            const slicePixelXLength = Math.floor(this._containerWidth / this.columnCount)
+            const slicePixelYLength = Math.floor(this._containerHeight / this.rowCount)
+            const boundaryHorizontalValues = (new Array(this.columnCount).join('-').split('-')).map((_, index) => slicePixelXLength * index);
+            const boundaryVerticalValues = (new Array(this.rowCount).join('-').split('-')).map((_, index) => slicePixelYLength * index)
+            const sliceArr = []
+
+            boundaryVerticalValues.forEach((itemY, indexY) => {
+                boundaryHorizontalValues.forEach((itemX, indexX) => {
+                    let dx, dy, dw, dh;
+                    dx = itemX;
+                    dy = itemY;
+                    dw = slicePixelXLength;
+                    dh = slicePixelYLength
+
+                    if (indexX === boundaryHorizontalValues.length - 1) {
+                        //the last one
+                        dw = this._containerWidth - indexX * slicePixelXLength
+                    }
+                    if (indexY === boundaryVerticalValues.length - 1) {
+                        //the last one
+                        dh = this._containerHeight - indexY * slicePixelYLength
+                    }
+
+                    sliceArr.push({
+                        dx,
+                        dy,
+                        dw,
+                        dh
+                    })
+                })
+            })
+            return sliceArr
+        }
+
+        //get image size and imgEle by src or base64
+        _getImgInfoBySrc(imgSrc, callback) {
+            const imgEle = document.createElement('img')
+            imgEle.src = imgSrc
+            imgEle.crossOrigin = 'use-credentials'
+            imgEle.onload = () => {
+                const imgWidth = imgEle.naturalWidth;
+                const imgHeight = imgEle.naturalHeight;
+                callback && callback({
+                    imgEle: imgEle,
+                    width: imgWidth,
+                    height: imgHeight
+                })
+            }
+        }
+
+        _3dLayer(layerEle, imgBoxSize, direction) {
+            layerEle.style.position = 'absolute'
+            layerEle.style.left = layerEle.style.right = '0px'
+            layerEle.style.backgroundColor = '#CCC'
+
+            if (direction === 'top' || direction === 'bottom') {
+                layerEle.style.width = `${imgBoxSize[0]}px`
+                layerEle.style.height = `${imgBoxSize[1]}px`
+                layerEle.style.transform = `translateY(-50%) rotateX(90deg)`;
+            } else if (direction === 'back') {
+                layerEle.style.width = `${imgBoxSize[0]}px`
+                layerEle.style.height = `${imgBoxSize[1]}px`
+                layerEle.style.transform = `translateZ(-${imgBoxSize[1] / 2}px)`;
+            } else if (direction === 'front') {
+                layerEle.style.width = `${imgBoxSize[0]}px`
+                layerEle.style.height = `${imgBoxSize[1]}px`
+                layerEle.style.transform = `translateZ(${imgBoxSize[1] / 2}px)`;
+            } else if (direction === 'left') {
+                layerEle.style.width = `${imgBoxSize[1]}px`
+                layerEle.style.height = `${imgBoxSize[1]}px`
+                layerEle.style.transform = `translateX(-50%) rotateY(90deg)`;
+            } else if (direction === 'right') {
+                layerEle.style.width = `${imgBoxSize[1]}px`
+                layerEle.style.height = `${imgBoxSize[1]}px`
+                layerEle.style.transform = `translateX(${imgBoxSize[0] - imgBoxSize[1] / 2}px) rotateY(90deg)`;
+            }
+            return layerEle
+        }
+    }
+
+
+    //资源的输入
+    document.querySelector('input').onchange = (e) => {
+        const file = e.target.files[0]
+        const fileReader = new FileReader()
+        fileReader.onload = (e) => {
+            const base64 = e.target.result;
+            const imgTransformer = new ImageTransformer('#img-container')
+            imgTransformer.config({
+                effect:'fly'
+            })
+            imgTransformer.initImgData(base64, () => {
+                imgTransformer.execute()
+            })
+        }
+        fileReader.readAsDataURL(file)
+    }
+
+
+</script>
+</body>
+</html>
