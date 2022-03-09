@@ -21,3 +21,6 @@ imgTransformer.initImgData(base64OrUrl, () => {
 })
 ```
 提示：如果因某种原因导致图片跨域不能访问，你可以考虑将其转换为base64的形式
+
+### 在线demo
+https://anderlaw.github.io/image-broke-assemble/
